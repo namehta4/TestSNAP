@@ -17,7 +17,7 @@ CXXFLAGS = -O2 $(DEFINE) -std=c++11
 #==========================
 # Compiler commands
 #==========================
-CXXOBJ       = $(CXX) $(CXXFLAGS) -c 
+CXXOBJ       = $(CXX) $(CXXFLAGS) -c
 CXXLD         = $(CXX) $(CXXFLAGS)
 
 #==========================

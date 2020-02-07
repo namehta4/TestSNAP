@@ -1,19 +1,19 @@
 // ----------------------------------------------------------------------
-// Copyright (2019) Sandia Corporation. 
-// Under the terms of Contract DE-AC04-94AL85000 
-// with Sandia Corporation, the U.S. Government 
-// retains certain rights in this software. This 
-// software is distributed under the Zero Clause 
+// Copyright (2019) Sandia Corporation.
+// Under the terms of Contract DE-AC04-94AL85000
+// with Sandia Corporation, the U.S. Government
+// retains certain rights in this software. This
+// software is distributed under the Zero Clause
 // BSD License
 //
 // TestSNAP - A prototype for the SNAP force kernel
 // Version 0.0.2
-// Main changes: Y array trick, memory compaction 
+// Main changes: Y array trick, memory compaction
 //
 // Original author: Aidan P. Thompson, athomps@sandia.gov
 // http://www.cs.sandia.gov/~athomps, Sandia National Laboratories
 //
-// Additional authors: 
+// Additional authors:
 // Sarah Anderson
 // Rahul Gayatri
 // Steve Plimpton
@@ -30,10 +30,9 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <chrono> 
+#include <chrono>
 #include <cmath>
 #include "sna.h"
-#include "memory.h"
 #include "test_snap.h"
 
 #if REFDATA_TWOJ==8
@@ -62,7 +61,7 @@ int main(int argc, char* argv[]){
 
   auto start = myclock::now();
   for (int istep = 0; istep < nsteps; istep++) {
-    
+
     // evaluate force kernel
 
     compute();
@@ -122,18 +121,18 @@ void init() {
   ntotal = nlocal+nghost;
   twojmax = refdata.twojmax;
   rcutfac = refdata.rcutfac;
-  coeffi = memory->grow(coeffi,ncoeff+1,"coeffi");
+  coeffi.resize(ncoeff+1);
   for (int icoeff = 0; icoeff < ncoeff+1; icoeff++)
-    coeffi[icoeff] = refdata.coeff[icoeff];
+    coeffi(icoeff) = refdata.coeff[icoeff];
 
   // allocate SNA object
 
-  memory = new Memory();
+//  memory = new Memory();
 
   // omit beta0 from beta vector
 
-  SNADOUBLE* beta = coeffi+1; 
-  snaptr = new SNA(memory,rfac0,twojmax,
+  SNADOUBLE* beta = coeffi.getBase()+1;
+  snaptr = new SNA(nlocal, ninside, rfac0,twojmax,
                    rmin0,switchflag,bzeroflag,beta);
   int tmp = snaptr->ncoeff;
   if (tmp != ncoeff) {
@@ -141,7 +140,7 @@ void init() {
     exit(1);
   }
 
-  f = memory->grow(f,ntotal,3,"f");
+  f.resize(ntotal,3);
   snaptr->grow_rij(ninside);
 
   // initialize SNA object
@@ -154,7 +153,7 @@ void init() {
 }
 
 /* ----------------------------------------------------------------------
-   Calculate forces on all local atoms 
+   Calculate forces on all local atoms
 ------------------------------------------------------------------------- */
 
 void compute() {
@@ -163,36 +162,36 @@ void compute() {
   // initialize all forces to zero
 
   for (int j = 0; j < ntotal; j++) {
-    f[j][0] = 0.0;
-    f[j][1] = 0.0;
-    f[j][2] = 0.0;
+    f(j,0) = 0.0;
+    f(j,1) = 0.0;
+    f(j,2) = 0.0;
   }
 
   // loop over atoms
- 
+
   int jneigh = 0;
 
   jt = 0;
   jjt = 0;
-  for (int i = 0; i < nlocal; i++) {
-      
-    // generate neighbors, dummy values
 
+ // generate neighbors, dummy values
+  for (int i = 0; i < nlocal; i++)
     for (int jj = 0; jj < ninside; jj++) {
-      snaptr->rij[jj][0] = refdata.rij[jt++];
-      snaptr->rij[jj][1] = refdata.rij[jt++];
-      snaptr->rij[jj][2] = refdata.rij[jt++];
-      snaptr->inside[jj] = refdata.jlist[jjt++];
-      snaptr->wj[jj] = 1.0;
-      snaptr->rcutij[jj] = rcutfac;
-    }
+      snaptr->rij(i,jj,0) = refdata.rij[jt++];
+      snaptr->rij(i,jj,1) = refdata.rij[jt++];
+      snaptr->rij(i,jj,2) = refdata.rij[jt++];
+      snaptr->inside(i,jj) = refdata.jlist[jjt++];
+      snaptr->wj(i,jj) = 1.0;
+      snaptr->rcutij(i,jj) = rcutfac;
+   }
+
+
+  for (int i = 0; i < nlocal; i++) {
 
     // compute Ui, Yi for atom I
-
-    snaptr->compute_ui(ninside);
-
-    SNADOUBLE* beta = coeffi+1; 
-    snaptr->compute_yi(beta);
+    snaptr->compute_ui(i);
+    SNADOUBLE* beta = coeffi.getBase()+1;
+    snaptr->compute_yi(i,beta);
 
     // loop over neighbors
     // for neighbors of I within cutoff:
@@ -202,17 +201,16 @@ void compute() {
     SNADOUBLE fij[3];
 
     for (int jj = 0; jj < ninside; jj++) {
-      int j = snaptr->inside[jj];
-      snaptr->compute_duidrj(snaptr->rij[jj],
-                             snaptr->wj[jj],snaptr->rcutij[jj]);
+      int j = snaptr->inside(i,jj);
+      snaptr->compute_duidrj(i,jj);
       snaptr->compute_deidrj(fij);
-        
-      f[i][0] += fij[0];
-      f[i][1] += fij[1];
-      f[i][2] += fij[2];
-      f[j][0] -= fij[0];
-      f[j][1] -= fij[1];
-      f[j][2] -= fij[2];
+
+      f(i,0) += fij[0];
+      f(i,1) += fij[1];
+      f(i,2) += fij[2];
+      f(j,0) -= fij[0];
+      f(j,1) -= fij[1];
+      f(j,2) -= fij[2];
 
     } // loop over neighbor forces
 
@@ -220,9 +218,9 @@ void compute() {
 
   jt = 0;
   for (int j = 0; j < ntotal; j++) {
-    double ferrx = f[j][0]-refdata.fj[jt++];
-    double ferry = f[j][1]-refdata.fj[jt++];
-    double ferrz = f[j][2]-refdata.fj[jt++];
+    double ferrx = f(j,0)-refdata.fj[jt++];
+    double ferry = f(j,1)-refdata.fj[jt++];
+    double ferrz = f(j,2)-refdata.fj[jt++];
     sumsqferr += ferrx*ferrx + ferry*ferry + ferrz*ferrz;
   }
 }

@@ -1,19 +1,19 @@
 // ----------------------------------------------------------------------
-// Copyright (2019) Sandia Corporation. 
-// Under the terms of Contract DE-AC04-94AL85000 
-// with Sandia Corporation, the U.S. Government 
-// retains certain rights in this software. This 
-// software is distributed under the Zero Clause 
+// Copyright (2019) Sandia Corporation.
+// Under the terms of Contract DE-AC04-94AL85000
+// with Sandia Corporation, the U.S. Government
+// retains certain rights in this software. This
+// software is distributed under the Zero Clause
 // BSD License
 //
 // TestSNAP - A prototype for the SNAP force kernel
 // Version 0.0.2
-// Main changes: Y array trick, memory compaction 
+// Main changes: Y array trick, memory compaction
 //
 // Original author: Aidan P. Thompson, athomps@sandia.gov
 // http://www.cs.sandia.gov/~athomps, Sandia National Laboratories
 //
-// Additional authors: 
+// Additional authors:
 // Sarah Anderson
 // Rahul Gayatri
 // Steve Plimpton
@@ -34,22 +34,15 @@
 #ifndef LMP_SNA_H
 #define LMP_SNA_H
 
-typedef double SNADOUBLE;
-typedef float SNAFLOAT;
-
-//struct SNA_ZINDICES {
-//  int j1, j2, j, ma1min, ma2max, mb1min, mb2max, na, nb, jju;
-//  SNADOUBLE betaj;
-//};
-
-struct SNA_BINDICES {
-  int j1, j2, j;
-};
+// Array class
+#include "arrayMDcpu.h"
 
 class SNA {
 
+  int num_atoms, num_nbor;
+
 public:
-  SNA(class Memory*, SNADOUBLE, int, SNADOUBLE, int, int, const double*);
+  SNA(int, int, SNADOUBLE, int, SNADOUBLE, int, int, const double*);
   ~SNA();
   void build_indexlist(const double*);
   void init();
@@ -61,55 +54,52 @@ public:
 
   void compute_ui(int);
 
-  void compute_yi(SNADOUBLE*);
+  void compute_yi(int,SNADOUBLE*);
 
   // functions for derivatives
 
-  void compute_duidrj(SNADOUBLE*, SNADOUBLE, SNADOUBLE);
+  void compute_duidrj(int, int);
   void compute_deidrj(SNADOUBLE*);
 
   // per sna class instance for OMP use
 
-  SNADOUBLE** rij;
-  int* inside;
-  SNADOUBLE* wj;
-  SNADOUBLE* rcutij;
+  Array3D<SNADOUBLE> rij;
+  Array2D<int> inside;
+  Array2D<SNADOUBLE> wj;
+  Array2D<SNADOUBLE> rcutij;
   int nmax;
 
   void grow_rij(int);
 
 private:
-  Memory* memory;
   SNADOUBLE rmin0, rfac0;
 
   // use indexlist instead of loops, constructor generates these
 
-  int** idxz_j1j2j;
-  int** idxz_ma;
-  int** idxz_mb;
-  SNA_BINDICES* idxb;
+  Array2D<int> idxz_j1j2j;
+  Array2D<int> idxz_ma;
+  Array2D<int> idxz_mb;
+  Array2D<int> idxb;
   int idxcg_max, idxu_max, idxz_max, idxb_max;
   int idxz_j1j2j_max, idxz_ma_max, idxz_mb_max;
 
   // data for bispectrum coefficients
 
   int twojmax;
-  SNADOUBLE** rootpqarray;
-  SNADOUBLE* cglist;
-  int*** idxcg_block;
+  Array2D<SNADOUBLE> rootpqarray;
+  Array1D<SNADOUBLE> cglist;
+  Array3D<int> idxcg_block;
 
-  SNADOUBLE* ulisttot_r, * ulisttot_i;
-  SNADOUBLE* ulist_r, * ulist_i;
-  int* idxu_block;
+  Array1D<SNAcomplex> ulisttot;
+  Array1D<SNAcomplex> ulist;
+  Array1D<int> idxu_block;
 
-  int*** idxz_block;
-
-  int*** idxb_block;
+  Array3D<int> idxb_block;
 
   // derivatives of data
 
-  SNADOUBLE** dulist_r, ** dulist_i;
-  SNADOUBLE* ylist_r, * ylist_i;
+  Array2D<SNAcomplex> dulist;
+  Array1D<SNAcomplex> ylist;
 
   static const int nmaxfactorial = 167;
   static const SNADOUBLE nfac_table[];
@@ -119,22 +109,14 @@ private:
   void destroy_twojmax_arrays();
   void init_clebsch_gordan();
   void init_rootpqarray();
-  void zero_uarraytot();
-  void addself_uarraytot(SNADOUBLE);
-  void add_uarraytot(SNADOUBLE, SNADOUBLE, SNADOUBLE);
-  void compute_uarray(SNADOUBLE, SNADOUBLE, SNADOUBLE,
-                      SNADOUBLE, SNADOUBLE);
-  void compute_uarray_inlineinversion(SNADOUBLE, SNADOUBLE, SNADOUBLE,
-                      SNADOUBLE, SNADOUBLE);
-  void compute_uarray_2J2(SNADOUBLE, SNADOUBLE, SNADOUBLE,
-                      SNADOUBLE, SNADOUBLE);
-  void compute_uarray_2J2_byhand(SNADOUBLE, SNADOUBLE, SNADOUBLE,
+  void zero_uarraytot(int);
+  void addself_uarraytot(int,SNADOUBLE);
+  void add_uarraytot(int, SNADOUBLE, SNADOUBLE, SNADOUBLE);
+  void compute_uarray(int, SNADOUBLE, SNADOUBLE, SNADOUBLE,
                       SNADOUBLE, SNADOUBLE);
   SNADOUBLE deltacg(int, int, int);
   int compute_ncoeff();
-  void compute_duarray(SNADOUBLE, SNADOUBLE, SNADOUBLE,
-                       SNADOUBLE, SNADOUBLE, SNADOUBLE, SNADOUBLE, SNADOUBLE);
-  void compute_duarray_inlineinversion(SNADOUBLE, SNADOUBLE, SNADOUBLE,
+  void compute_duarray(int,SNADOUBLE, SNADOUBLE, SNADOUBLE,
                        SNADOUBLE, SNADOUBLE, SNADOUBLE, SNADOUBLE, SNADOUBLE);
   SNADOUBLE compute_sfac(SNADOUBLE, SNADOUBLE);
   SNADOUBLE compute_dsfac(SNADOUBLE, SNADOUBLE);

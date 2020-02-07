@@ -1,19 +1,19 @@
 // ----------------------------------------------------------------------
-// Copyright (2019) Sandia Corporation. 
-// Under the terms of Contract DE-AC04-94AL85000 
-// with Sandia Corporation, the U.S. Government 
-// retains certain rights in this software. This 
-// software is distributed under the Zero Clause 
+// Copyright (2019) Sandia Corporation.
+// Under the terms of Contract DE-AC04-94AL85000
+// with Sandia Corporation, the U.S. Government
+// retains certain rights in this software. This
+// software is distributed under the Zero Clause
 // BSD License
 //
 // TestSNAP - A prototype for the SNAP force kernel
 // Version 0.0.2
-// Main changes: Y array trick, memory compaction 
+// Main changes: Y array trick, memory compaction
 //
 // Original author: Aidan P. Thompson, athomps@sandia.gov
 // http://www.cs.sandia.gov/~athomps, Sandia National Laboratories
 //
-// Additional authors: 
+// Additional authors:
 // Sarah Anderson
 // Rahul Gayatri
 // Steve Plimpton
@@ -27,9 +27,8 @@
 //
 // ----------------------------------------------------------------------
 
-// Memory class
-
-Memory* memory = NULL;
+// Array class
+#include "arrayMDcpu.h"
 
 // MD data
 
@@ -38,8 +37,8 @@ int nlocal;             // number of local atoms
 int nghost;             // number of ghost atoms
 int ntotal;             // number of total atoms
 int nsteps = 1;              // num of force evaluations
-double **f = NULL;           // atom forces
-SNADOUBLE *coeffi = NULL;     // beta coefficients for atom i
+Array2D<double> f;
+Array1D<SNADOUBLE> coeffi;     // beta coefficients for atom i
 int ncoeff;                  // number of beta coefficients
 
 // SNAP data
