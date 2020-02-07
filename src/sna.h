@@ -36,6 +36,9 @@
 
 // Array class
 #include "arrayMDcpu.h"
+//using SNADOUBLE = double ;
+//using SNAFLOAT = float ;
+//using SNAcomplex = struct {SNADOUBLE re, im ;};
 
 class SNA {
 

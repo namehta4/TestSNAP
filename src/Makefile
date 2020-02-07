@@ -12,7 +12,7 @@ SRC = *.cpp
 # compilers and options
 CXX = g++
 DEFINE = -DREFDATA_TWOJ=14 # 8 or 14 or 2
-CXXFLAGS = -O2 $(DEFINE) -std=c++11
+CXXFLAGS = -O3  $(DEFINE) -std=c++11 -Wall
 
 #==========================
 # Compiler commands

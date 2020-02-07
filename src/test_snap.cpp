@@ -122,8 +122,8 @@ void init() {
   twojmax = refdata.twojmax;
   rcutfac = refdata.rcutfac;
   coeffi.resize(ncoeff+1);
-  for (int icoeff = 0; icoeff < ncoeff+1; icoeff++)
-    coeffi(icoeff) = refdata.coeff[icoeff];
+ for (int icoeff = 0; icoeff < ncoeff+1; icoeff++)
+   coeffi(icoeff) = refdata.coeff[icoeff];
 
   // allocate SNA object
 
@@ -157,22 +157,15 @@ void init() {
 ------------------------------------------------------------------------- */
 
 void compute() {
-  int jt, jjt;
 
   // initialize all forces to zero
-
   for (int j = 0; j < ntotal; j++) {
     f(j,0) = 0.0;
     f(j,1) = 0.0;
     f(j,2) = 0.0;
   }
 
-  // loop over atoms
-
-  int jneigh = 0;
-
-  jt = 0;
-  jjt = 0;
+  int jt = 0, jjt = 0;
 
  // generate neighbors, dummy values
   for (int i = 0; i < nlocal; i++)
@@ -186,6 +179,7 @@ void compute() {
    }
 
 
+  // loop over atoms
   for (int i = 0; i < nlocal; i++) {
 
     // compute Ui, Yi for atom I
@@ -200,6 +194,7 @@ void compute() {
 
     SNADOUBLE fij[3];
 
+  // loop over neighbors
     for (int jj = 0; jj < ninside; jj++) {
       int j = snaptr->inside(i,jj);
       snaptr->compute_duidrj(i,jj);

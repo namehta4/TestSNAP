@@ -205,9 +205,9 @@ void SNA::build_indexlist(const double* beta)
     for(int j2 = 0; j2 <= j1; j2++)
       for(int j = abs(j1 - j2); j <= MIN(twojmax, j1 + j2); j += 2)
         if (j >= j1) {
-          idxb(idxb_count,j1) = j1;
-          idxb(idxb_count,j2) = j2;
-          idxb(idxb_count,j) = j;
+          idxb(idxb_count,0) = j1;
+          idxb(idxb_count,1) = j2;
+          idxb(idxb_count,2) = j;
           idxb_count++;
         }
 
@@ -493,7 +493,7 @@ void SNA::compute_deidrj(SNADOUBLE* dedr)
         jju++;
       }
 
-      int ma = mb;
+//      int ma = mb;
       Array2D<SNAcomplex> dudr(dulist);
       dudr.setBase(jju);
 
@@ -675,7 +675,7 @@ void SNA::compute_uarray(int natom, SNADOUBLE x, SNADOUBLE y, SNADOUBLE z,
     // For j even, handle middle column
 
     if (j%2 == 0) {
-      int mb = j/2;
+//      int mb = j/2;
       int mapar = mbpar;
       for (int ma = 0; 2*ma < j; ma++) {
         if (mapar == 1) {
@@ -913,7 +913,7 @@ void SNA::destroy_twojmax_arrays()
 SNADOUBLE SNA::factorial(int n)
 {
   if (n < 0 || n > nmaxfactorial) {
-    char str[128];
+//    char str[128];
     //printf("Invalid argument to factorial %d", n);
     exit(1);
   }

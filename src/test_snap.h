@@ -59,14 +59,11 @@ void init();
 void compute();
 
 // timer classes
-
-typedef std::chrono::high_resolution_clock myclock;
-typedef std::chrono::duration<float> myduration;
+using myclock = std::chrono::high_resolution_clock ;
+using myduration =  std::chrono::duration<float> ;
 
 // math stuff
-
 static const double MY_PI  = 3.14159265358979323846; // pi
 
 // error tally
-
 double sumsqferr;

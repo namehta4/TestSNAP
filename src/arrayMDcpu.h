@@ -189,12 +189,12 @@ template<typename T> class Array3D
     }
 
     // Destructor
-    ~Array3D() { if (size && dptr) delete[]dptr; }
+    ~Array3D() { if (size && dptr) delete dptr; }
 
     // Resize a declared array to a new dimension
     void resize(unsigned in1, unsigned in2, unsigned in3)
     {
-      if (size && dptr) delete[]dptr;
+      if (size && dptr) delete[] dptr;
       n1 = in1; n2 = in2; n3 = in3;
       f1 = n2*n3; f2 = n3;
       num_elements = n1*n2*n3;
