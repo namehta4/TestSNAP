@@ -151,7 +151,7 @@ SNA::SNA(Memory* memory_in, SNADOUBLE rfac0_in,
 
   build_indexlist(beta);
   create_twojmax_arrays();
-
+  printf("Hello world git");
 }
 
 /* ---------------------------------------------------------------------- */
