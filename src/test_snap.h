@@ -1,45 +1,22 @@
-// ----------------------------------------------------------------------
-// Copyright (2019) Sandia Corporation. 
-// Under the terms of Contract DE-AC04-94AL85000 
-// with Sandia Corporation, the U.S. Government 
-// retains certain rights in this software. This 
-// software is distributed under the Zero Clause 
-// BSD License
-//
-// TestSNAP - A prototype for the SNAP force kernel
-// Version 0.0.2
-// Main changes: Y array trick, memory compaction 
-//
-// Original author: Aidan P. Thompson, athomps@sandia.gov
-// http://www.cs.sandia.gov/~athomps, Sandia National Laboratories
-//
-// Additional authors: 
-// Sarah Anderson
-// Rahul Gayatri
-// Steve Plimpton
-// Christian Trott
-//
-// Collaborators:
-// Stan Moore
-// Evan Weinberg
-// Nick Lubbers
-// Mitch Wood
-//
-// ----------------------------------------------------------------------
+/* ----------------------------------------------------------------------
+   Copyright (2018) Sandia Corporation.  Under the terms of Contract
+   DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
+   certain rights in this software.
+
+   Author: Aidan P. Thompson
+------------------------------------------------------------------------- */
 
 // Memory class
 
 Memory* memory = NULL;
 
 // MD data
-
 int ninside;            // num neighbors per atom
 int nlocal;             // number of local atoms
 int nghost;             // number of ghost atoms
 int ntotal;             // number of total atoms
 int nsteps = 1;              // num of force evaluations
-double **f = NULL;           // atom forces
-SNADOUBLE *coeffi = NULL;     // beta coefficients for atom i
+Array2D<double> f;           // atom forces
 int ncoeff;                  // number of beta coefficients
 
 // SNAP data
@@ -54,20 +31,16 @@ int bzeroflag = 1;          // SNAP parameter
 int quadraticflag = 0;      // SNAP parameter
 
 // function declarations
-
 void options(int, char*[]);
 void init();
 void compute();
 
 // timer classes
-
 typedef std::chrono::high_resolution_clock myclock;
 typedef std::chrono::duration<float> myduration;
 
 // math stuff
-
 static const double MY_PI  = 3.14159265358979323846; // pi
 
 // error tally
-
 double sumsqferr;

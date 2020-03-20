@@ -1,31 +1,15 @@
-// ----------------------------------------------------------------------
-// Copyright (2019) Sandia Corporation. 
-// Under the terms of Contract DE-AC04-94AL85000 
-// with Sandia Corporation, the U.S. Government 
-// retains certain rights in this software. This 
-// software is distributed under the Zero Clause 
-// BSD License
-//
-// TestSNAP - A prototype for the SNAP force kernel
-// Version 0.0.2
-// Main changes: Y array trick, memory compaction 
-//
-// Original author: Aidan P. Thompson, athomps@sandia.gov
-// http://www.cs.sandia.gov/~athomps, Sandia National Laboratories
-//
-// Additional authors: 
-// Sarah Anderson
-// Rahul Gayatri
-// Steve Plimpton
-// Christian Trott
-//
-// Collaborators:
-// Stan Moore
-// Evan Weinberg
-// Nick Lubbers
-// Mitch Wood
-//
-// ----------------------------------------------------------------------
+/* -*- c++ -*- -------------------------------------------------------------
+   LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
+   http://lammps.sandia.gov, Sandia National Laboratories
+   Steve Plimpton, sjplimp@sandia.gov
+
+   Copyright (2003) Sandia Corporation.  Under the terms of Contract
+   DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
+   certain rights in this software.  This software is distributed under
+   the GNU General Public License.
+
+   See the README file in the top-level LAMMPS directory.
+------------------------------------------------------------------------- */
 
 /* ----------------------------------------------------------------------
    Contributing authors: Aidan Thompson, Christian Trott, SNL
@@ -34,13 +18,12 @@
 #ifndef LMP_SNA_H
 #define LMP_SNA_H
 
+#include "arrayMDcpu.h"
+
 typedef double SNADOUBLE;
 typedef float SNAFLOAT;
 
-//struct SNA_ZINDICES {
-//  int j1, j2, j, ma1min, ma2max, mb1min, mb2max, na, nb, jju;
-//  SNADOUBLE betaj;
-//};
+using SNAcomplex = struct{SNADOUBLE re, im;};
 
 struct SNA_BINDICES {
   int j1, j2, j;
@@ -49,67 +32,67 @@ struct SNA_BINDICES {
 class SNA {
 
 public:
-  SNA(class Memory*, SNADOUBLE, int, SNADOUBLE, int, int, const double*);
+  SNA(int, int, class Memory*, SNADOUBLE, int, SNADOUBLE, int, int);
   ~SNA();
-  void build_indexlist(const double*);
+  void build_indexlist();
   void init();
   SNADOUBLE memory_usage();
 
   int ncoeff;
-
+  int num_atoms, num_nbors;
+  
   // functions for bispectrum coefficients
-
-  void compute_ui(int);
-
-  void compute_yi(SNADOUBLE*);
+  void compute_ui();
+  void compute_yi();
 
   // functions for derivatives
-
-  void compute_duidrj(SNADOUBLE*, SNADOUBLE, SNADOUBLE);
-  void compute_deidrj(SNADOUBLE*);
+  void compute_duidrj();
+  void compute_duarray();
+  void compute_deidrj();
+  Array3D<SNADOUBLE> dedr;
 
   // per sna class instance for OMP use
-
-  SNADOUBLE** rij;
-  int* inside;
-  SNADOUBLE* wj;
-  SNADOUBLE* rcutij;
+  Array3D<SNADOUBLE> rij;
+  Array2D<int> inside;
+  Array2D<SNADOUBLE> wj;
+  Array2D<SNADOUBLE> rcutij;
   int nmax;
 
   void grow_rij(int);
+  Array1D<SNA_BINDICES> idxb;
+  double* coefft; 
 
+  Array2D<int> idxb_trd;
+  Array2D<int> idxz_trd;
+  double* beta;
 private:
   Memory* memory;
   SNADOUBLE rmin0, rfac0;
 
   // use indexlist instead of loops, constructor generates these
-
-  int** idxz_j1j2j;
-  int** idxz_ma;
-  int** idxz_mb;
-  SNA_BINDICES* idxb;
-  int idxcg_max, idxu_max, idxz_max, idxb_max;
-  int idxz_j1j2j_max, idxz_ma_max, idxz_mb_max;
+  Array2D<int> idxz;
+  Array1D<SNADOUBLE> idxzbeta;
+  int idxcg_max, idxu_max, idxdu_max, idxz_max, idxb_max;
 
   // data for bispectrum coefficients
-
   int twojmax;
-  SNADOUBLE** rootpqarray;
-  SNADOUBLE* cglist;
-  int*** idxcg_block;
+  Array3D<int> idxcg_block;
+  Array2D<SNADOUBLE> rootpqarray;
+  Array2D<SNADOUBLE> rootpqparityarray;
+  Array1D<SNADOUBLE> cglist;
 
-  SNADOUBLE* ulisttot_r, * ulisttot_i;
-  SNADOUBLE* ulist_r, * ulist_i;
-  int* idxu_block;
+  Array2D<SNAcomplex> ulisttot;
+  Array3D<SNAcomplex> ulist;
+  Array1D<int> idxu_block;
+  Array1D<int> ulist_parity;
+  Array1D<int> idxdu_block;
+  
+  Array3D<int> idxb_block;
 
-  int*** idxz_block;
-
-  int*** idxb_block;
 
   // derivatives of data
-
-  SNADOUBLE** dulist_r, ** dulist_i;
-  SNADOUBLE* ylist_r, * ylist_i;
+  Array4D<SNAcomplex> dulist;
+  Array2D<SNAcomplex> ylist;
 
   static const int nmaxfactorial = 167;
   static const SNADOUBLE nfac_table[];
@@ -121,21 +104,11 @@ private:
   void init_rootpqarray();
   void zero_uarraytot();
   void addself_uarraytot(SNADOUBLE);
-  void add_uarraytot(SNADOUBLE, SNADOUBLE, SNADOUBLE);
-  void compute_uarray(SNADOUBLE, SNADOUBLE, SNADOUBLE,
-                      SNADOUBLE, SNADOUBLE);
-  void compute_uarray_inlineinversion(SNADOUBLE, SNADOUBLE, SNADOUBLE,
-                      SNADOUBLE, SNADOUBLE);
-  void compute_uarray_2J2(SNADOUBLE, SNADOUBLE, SNADOUBLE,
-                      SNADOUBLE, SNADOUBLE);
-  void compute_uarray_2J2_byhand(SNADOUBLE, SNADOUBLE, SNADOUBLE,
-                      SNADOUBLE, SNADOUBLE);
+  void add_uarraytot(int, int, SNADOUBLE);
+  void compute_uarray(int, int, SNADOUBLE, SNADOUBLE, SNADOUBLE,
+                      SNADOUBLE);
   SNADOUBLE deltacg(int, int, int);
   int compute_ncoeff();
-  void compute_duarray(SNADOUBLE, SNADOUBLE, SNADOUBLE,
-                       SNADOUBLE, SNADOUBLE, SNADOUBLE, SNADOUBLE, SNADOUBLE);
-  void compute_duarray_inlineinversion(SNADOUBLE, SNADOUBLE, SNADOUBLE,
-                       SNADOUBLE, SNADOUBLE, SNADOUBLE, SNADOUBLE, SNADOUBLE);
   SNADOUBLE compute_sfac(SNADOUBLE, SNADOUBLE);
   SNADOUBLE compute_dsfac(SNADOUBLE, SNADOUBLE);
 

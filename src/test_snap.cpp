@@ -1,39 +1,21 @@
-// ----------------------------------------------------------------------
-// Copyright (2019) Sandia Corporation. 
-// Under the terms of Contract DE-AC04-94AL85000 
-// with Sandia Corporation, the U.S. Government 
-// retains certain rights in this software. This 
-// software is distributed under the Zero Clause 
-// BSD License
-//
-// TestSNAP - A prototype for the SNAP force kernel
-// Version 0.0.2
-// Main changes: Y array trick, memory compaction 
-//
-// Original author: Aidan P. Thompson, athomps@sandia.gov
-// http://www.cs.sandia.gov/~athomps, Sandia National Laboratories
-//
-// Additional authors: 
-// Sarah Anderson
-// Rahul Gayatri
-// Steve Plimpton
-// Christian Trott
-//
-// Collaborators:
-// Stan Moore
-// Evan Weinberg
-// Nick Lubbers
-// Mitch Wood
-//
-// ----------------------------------------------------------------------
+/* ----------------------------------------------------------------------
+   Copyright (2018) Sandia Corporation.  Under the terms of Contract
+   DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
+   certain rights in this software.
+
+   Author: Aidan P. Thompson
+------------------------------------------------------------------------- */
 
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <chrono> 
 #include <cmath>
+#include <omp.h>
+#include <sys/time.h>
 #include "sna.h"
 #include "memory.h"
+#include "arrayMDcpu.h"
 #include "test_snap.h"
 
 #if REFDATA_TWOJ==8
@@ -46,28 +28,141 @@
 #include "refdata_2J4_W.h"
 #endif
 
+/* ----------------------------------------------------------------------
+    Vars to record timings of individual routines
+------------------------------------------------------------------------- */
+static double elapsed_ui = 0.0,  
+            elapsed_zi = 0.0,
+            elapsed_yi = 0.0,
+            elapsed_duidrj = 0.0,
+            elapsed_deidrj = 0.0;
+            
+/* ----------------------------------------------------------------------
+  Elapsed Time
+------------------------------------------------------------------------- */
+inline double elapsedTime(timeval start_time, timeval end_time)
+{
+    return ((end_time.tv_sec - start_time.tv_sec) +1e-6*(end_time.tv_usec - start_time.tv_usec));
+}   
+
+ /* ---------------------------------------------------------------------- */
+
+
+/* ----------------------------------------------------------------------
+  Compute error
+------------------------------------------------------------------------- */
+
+inline void init_forces()
+{
+  // initialize all forces to zero
+#if defined(openmp_version)
+#pragma omp parallel for default(none) shared(ntotal,f)
+#endif
+  for (int j = 0; j < ntotal; j++) {
+    f(j,0) = 0.0;
+    f(j,1) = 0.0;
+    f(j,2) = 0.0;
+  }
+}
+
 /* ---------------------------------------------------------------------- */
 
-int main(int argc, char* argv[]){
+
+/* ----------------------------------------------------------------------
+  Read reference data
+------------------------------------------------------------------------- */
+
+    // generate neighbors, dummy values
+inline void read_data()
+{
+  int jt = 0;
+  int jjt = 0;
+  for (int natom = 0; natom < nlocal; natom++) {
+    for (int nbor = 0; nbor < ninside; nbor++) {
+      snaptr->rij(natom,nbor,0) = refdata.rij[jt++];
+      snaptr->rij(natom,nbor,1) = refdata.rij[jt++];
+      snaptr->rij(natom,nbor,2) = refdata.rij[jt++];
+      snaptr->inside(natom,nbor) = refdata.jlist[jjt++];
+      snaptr->wj(natom,nbor) = 1.0;
+      snaptr->rcutij(natom,nbor) = rcutfac;
+    }
+  }
+}
+
+/* ---------------------------------------------------------------------- */
+
+
+/* ----------------------------------------------------------------------
+  Compute error
+------------------------------------------------------------------------- */
+
+inline void compute_forces(SNA* snaptr)
+{
+  // Fij = dEi/dRj = -dEi/dRi => add to Fi, subtract from Fj
+  for (int natom = 0; natom < nlocal; natom++) {
+    for (int nbor = 0; nbor < ninside; nbor++) {
+      int j = snaptr->inside(natom,nbor);
+      f(natom,0) += snaptr->dedr(natom,nbor,0); 
+      f(natom,1) += snaptr->dedr(natom,nbor,1); 
+      f(natom,2) += snaptr->dedr(natom,nbor,2); 
+      f(j,0) -= snaptr->dedr(natom,nbor,0); 
+      f(j,1) -= snaptr->dedr(natom,nbor,1); 
+      f(j,2) -= snaptr->dedr(natom,nbor,2); 
+    } // loop over neighbor forces
+  } // loop over atoms
+}
+
+/* ---------------------------------------------------------------------- */
+
+
+/* ----------------------------------------------------------------------
+  Compute error
+------------------------------------------------------------------------- */
+
+inline void compute_error(SNA *snaptr)
+{
+  int jt = 0;
+  for (int j = 0; j < ntotal; j++) {
+    double ferrx = f(j,0)-refdata.fj[jt++];
+    double ferry = f(j,1)-refdata.fj[jt++];
+    double ferrz = f(j,2)-refdata.fj[jt++];
+    sumsqferr += ferrx*ferrx + ferry*ferry + ferrz*ferrz;
+  }
+}
+
+/* ---------------------------------------------------------------------- */
+
+
+int main(int argc, char* argv[])
+{
+    int tid=0, numThreads=0, numTeams=0;
+#if defined(openmp_version)
+    printf("*******OpenMP version *******\n");
+#pragma omp parallel shared(numThreads) private(tid)
+    {   
+        tid = omp_get_thread_num();
+        if(tid == 0)
+            numThreads = omp_get_num_threads();
+    }
+    printf("Number of OpenMP Threads = %d\n",numThreads);
+#else
+    printf("*******SEQ version *******\n");
+#endif
 
   // process command line options
-
   options(argc, argv);
 
   // initialize data structures
-
   init();
 
     // loop over steps
-
   auto start = myclock::now();
   for (int istep = 0; istep < nsteps; istep++) {
     
     // evaluate force kernel
-
     compute();
-
   }
+  
   auto stop = myclock::now();
   myduration elapsed = stop - start;
 
@@ -83,6 +178,12 @@ int main(int argc, char* argv[]){
   printf("step time = %g [sec/step]\n",elapsed.count()/nsteps);
   printf("grind time = %g [msec/atom-step]\n",1000.0*elapsed.count()/(nlocal*nsteps));
   printf("RMS |Fj| deviation %g [eV/A]\n",sqrt(sumsqferr/(ntotal*nsteps)));
+
+  printf("\n Individual routine timings\n");
+  printf("compute_ui = %f\n", elapsed_ui);
+  printf("compute_yi = %f\n", elapsed_yi);
+  printf("compute_duidrj = %f\n", elapsed_duidrj);
+  printf("compute_deidrj = %f\n", elapsed_deidrj);  
 }
 
 /* ----------------------------------------------------------------------
@@ -122,34 +223,33 @@ void init() {
   ntotal = nlocal+nghost;
   twojmax = refdata.twojmax;
   rcutfac = refdata.rcutfac;
-  coeffi = memory->grow(coeffi,ncoeff+1,"coeffi");
-  for (int icoeff = 0; icoeff < ncoeff+1; icoeff++)
-    coeffi[icoeff] = refdata.coeff[icoeff];
 
   // allocate SNA object
-
   memory = new Memory();
 
   // omit beta0 from beta vector
-
-  SNADOUBLE* beta = coeffi+1; 
-  snaptr = new SNA(memory,rfac0,twojmax,
-                   rmin0,switchflag,bzeroflag,beta);
+  snaptr = new SNA(nlocal,ninside,memory,rfac0,twojmax,
+                   rmin0,switchflag,bzeroflag);
   int tmp = snaptr->ncoeff;
   if (tmp != ncoeff) {
     printf("ERROR: ncoeff from SNA does not match reference data\n");
     exit(1);
   }
+  
+  snaptr->coefft = new double[ncoeff+1];
+  for (int icoeff = 0; icoeff < ncoeff+1; icoeff++){
+    snaptr->coefft[icoeff] = refdata.coeff[icoeff];
+  }
 
-  f = memory->grow(f,ntotal,3,"f");
+  f.resize(ntotal,3);
+  snaptr->num_atoms = nlocal;
+  snaptr->num_nbors = ninside;
   snaptr->grow_rij(ninside);
 
   // initialize SNA object
-
   snaptr->init();
 
   // initialize error tally
-
   sumsqferr = 0.0;
 }
 
@@ -158,72 +258,38 @@ void init() {
 ------------------------------------------------------------------------- */
 
 void compute() {
-  int jt, jjt;
-
-  // initialize all forces to zero
-
-  for (int j = 0; j < ntotal; j++) {
-    f[j][0] = 0.0;
-    f[j][1] = 0.0;
-    f[j][2] = 0.0;
-  }
-
-  // loop over atoms
+  timeval startTimer, endTimer;
+  
+  init_forces();
+  read_data();
  
-  int jneigh = 0;
+  // compute Ui for all atoms (loops over all atoms)
+  gettimeofday(&startTimer, NULL);
+  snaptr->compute_ui();
+  gettimeofday(&endTimer, NULL);
+  elapsed_ui += elapsedTime(startTimer, endTimer);
 
-  jt = 0;
-  jjt = 0;
-  for (int i = 0; i < nlocal; i++) {
+  // compute Yi for all atoms (loops over all atoms)
+  gettimeofday(&startTimer, NULL);
+  snaptr->compute_yi();
+  gettimeofday(&endTimer, NULL);
+  elapsed_yi += elapsedTime(startTimer, endTimer);
+
+
+  // compute dUi/drj by looping over neighbors for all atoms within cutoff
+  gettimeofday(&startTimer, NULL);
+//  snaptr->compute_duidrj();
+  snaptr->compute_duarray();
+  gettimeofday(&endTimer, NULL);
+  elapsed_duidrj += elapsedTime(startTimer, endTimer);
       
-    // generate neighbors, dummy values
-
-    for (int jj = 0; jj < ninside; jj++) {
-      snaptr->rij[jj][0] = refdata.rij[jt++];
-      snaptr->rij[jj][1] = refdata.rij[jt++];
-      snaptr->rij[jj][2] = refdata.rij[jt++];
-      snaptr->inside[jj] = refdata.jlist[jjt++];
-      snaptr->wj[jj] = 1.0;
-      snaptr->rcutij[jj] = rcutfac;
-    }
-
-    // compute Ui, Yi for atom I
-
-    snaptr->compute_ui(ninside);
-
-    SNADOUBLE* beta = coeffi+1; 
-    snaptr->compute_yi(beta);
-
-    // loop over neighbors
-    // for neighbors of I within cutoff:
-    // compute dUi/drj and dBi/drj
-    // Fij = dEi/dRj = -dEi/dRi => add to Fi, subtract from Fj
-
-    SNADOUBLE fij[3];
-
-    for (int jj = 0; jj < ninside; jj++) {
-      int j = snaptr->inside[jj];
-      snaptr->compute_duidrj(snaptr->rij[jj],
-                             snaptr->wj[jj],snaptr->rcutij[jj]);
-      snaptr->compute_deidrj(fij);
-        
-      f[i][0] += fij[0];
-      f[i][1] += fij[1];
-      f[i][2] += fij[2];
-      f[j][0] -= fij[0];
-      f[j][1] -= fij[1];
-      f[j][2] -= fij[2];
-
-    } // loop over neighbor forces
-
-  } // loop over atoms
-
-  jt = 0;
-  for (int j = 0; j < ntotal; j++) {
-    double ferrx = f[j][0]-refdata.fj[jt++];
-    double ferry = f[j][1]-refdata.fj[jt++];
-    double ferrz = f[j][2]-refdata.fj[jt++];
-    sumsqferr += ferrx*ferrx + ferry*ferry + ferrz*ferrz;
-  }
+  // compute dBi/drj by looping over neighbors for all atoms within cutoff
+  gettimeofday(&startTimer, NULL);
+  snaptr->compute_deidrj();
+  gettimeofday(&endTimer, NULL);
+  elapsed_deidrj += elapsedTime(startTimer, endTimer);
+       
+  compute_forces(snaptr); 
+  compute_error(snaptr);
 }
 
