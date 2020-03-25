@@ -18,7 +18,7 @@
 #ifndef LMP_SNA_H
 #define LMP_SNA_H
 
-#include "arrayMDcpu.h"
+#include "arrayMDgpu.h"
 
 typedef double SNADOUBLE;
 typedef float SNAFLOAT;

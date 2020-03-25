@@ -321,10 +321,10 @@ void SNA::compute_ui()
   addself_uarraytot(wself);
 
 #if defined(openmp_version)
-#pragma omp target teams distribute parallel for collapse(2)
+#pragma omp target teams distribute parallel for collapse(2) nowait
 #endif
-  for (int natom = 0; natom < num_atoms; natom++) {
-    for(int nbor = 0; nbor < num_nbors; nbor++) {
+  for(int nbor = 0; nbor < num_nbors; nbor++) {
+    for (int natom = 0; natom < num_atoms; natom++) {
       SNADOUBLE  x = rij(natom,nbor,0);
       SNADOUBLE  y = rij(natom,nbor,1);
       SNADOUBLE  z = rij(natom,nbor,2);
@@ -357,10 +357,10 @@ void SNA::compute_ui()
 void SNA::compute_yi()
 {
 #if defined(openmp_version)
-#pragma omp target teams distribute parallel for collapse(2)
+#pragma omp target teams distribute parallel for collapse(2) nowait
 #endif
-  for (int natom = 0; natom < num_atoms; natom++) {
-    for(int jjdu = 0; jjdu < idxdu_max; jjdu++) {
+  for(int jjdu = 0; jjdu < idxdu_max; jjdu++) {
+    for (int natom = 0; natom < num_atoms; natom++) {
       ylist(natom,jjdu) = {0.0, 0.0};
     }
   }
@@ -368,8 +368,8 @@ void SNA::compute_yi()
 #if defined(openmp_version)
 #pragma omp target teams distribute parallel for collapse(2)
 #endif
-  for (int natom = 0; natom < num_atoms; natom++) {
-    for(int jjz = 0; jjz < idxz_max; jjz++) {
+  for(int jjz = 0; jjz < idxz_max; jjz++) {
+    for (int natom = 0; natom < num_atoms; natom++) {
       const int j1 = idxz(jjz,0);
       const int j2 = idxz(jjz,1);
       const int j = idxz(jjz,2);
@@ -463,8 +463,8 @@ void SNA::compute_deidrj()
 #if defined(openmp_version)
 #pragma omp target teams distribute parallel for collapse(2)
 #endif
-  for(int natom = 0; natom < num_atoms; natom++) {
-    for (int nbor = 0; nbor < num_nbors; nbor++) {
+  for (int nbor = 0; nbor < num_nbors; nbor++) {
+    for(int natom = 0; natom < num_atoms; natom++) {
       for(int k = 0; k < 3; k++)
         dedr(natom,nbor,k) = 0.0;
       for(int j = 0; j <= twojmax; j++) {
@@ -504,8 +504,8 @@ void SNA::compute_deidrj()
 #if defined(openmp_version)
 #pragma omp target teams distribute parallel for collapse(3)
 #endif
-  for(int natom = 0; natom < num_atoms; natom++)
-    for (int nbor = 0; nbor < num_nbors; nbor++)
+  for (int nbor = 0; nbor < num_nbors; nbor++)
+    for(int natom = 0; natom < num_atoms; natom++)
       for(int k = 0; k < 3; k++)
         dedr(natom,nbor,k) *= 2.0;
 
@@ -521,8 +521,8 @@ void SNA::zero_uarraytot()
 #if defined(openmp_version)
 #pragma omp target teams distribute parallel for collapse(2)
 #endif
-  for (int natom = 0; natom < num_atoms; natom++)
-    for (int jju = 0; jju < idxu_max; jju++)
+  for (int jju = 0; jju < idxu_max; jju++)
+    for (int natom = 0; natom < num_atoms; natom++)
         ulisttot(natom,jju) = {0.0,0.0};
 }
 
@@ -648,8 +648,8 @@ void SNA::compute_duarray()
 #if defined(openmp_version)
 #pragma omp target teams distribute parallel for collapse(2)
 #endif
-  for (int natom = 0; natom < num_atoms; natom++) {
-    for (int nbor = 0; nbor < num_nbors; nbor++) {
+  for (int nbor = 0; nbor < num_nbors; nbor++) {
+    for (int natom = 0; natom < num_atoms; natom++) {
       SNADOUBLE rcut = rcutij(natom,nbor);
       SNADOUBLE wxj = wj(natom,nbor);
     
