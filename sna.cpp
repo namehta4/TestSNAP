@@ -212,19 +212,14 @@ void SNA::build_indexlist()
 #pragma omp target exit data map(from: this->idxb_trd.dptr[0:this->idxb_trd.size]) nowait
   
   // index list for zlist
-
 #if defined(openmp_version)
-#pragma omp target teams distribute parallel for private(idxz_count) nowait
+#pragma omp target teams distribute parallel for private(idxz_count,idxb_count) nowait
 #endif
   for(int pxc = 0; pxc < j1j2tot; pxc++){
       int j1 = int((-1 + sqrt(1+8*pxc))/2);
       int j2 = pxc - j1*(j1+1)/2;
       idxz_count = idxz_trd(j1,j2);
       for(int j = abs(j1 - j2); j <= MIN(twojmax, j1 + j2); j += 2) {
-        // find right beta[jjb] entries
-        // multiply and divide by j+1 factors
-        // account for multiplicity of 1, 2, or 3
-        // this should not be computed here
         SNADOUBLE betaj; 
         if (j >= j1) {
           const int jjb = idxb_block(j1,j2,j);
@@ -239,26 +234,8 @@ void SNA::build_indexlist()
         } else {
           const int jjb = idxb_block(j2,j,j1);
           betaj = beta(jjb+1)*(j1+1)/(j+1.0); 
-        }
-        for (int mb = 0; 2*mb <= j; mb++)
-          for (int ma = 0; ma <= j; ma++) {
-            idxzbeta(idxz_count) = betaj;
-            idxz_count++;
-	  }
-      }
-  }
-
-
-
-#if defined(openmp_version)
-#pragma omp target teams distribute parallel for private(idxz_count) nowait
-#endif
-  for(int pxc = 0; pxc < j1j2tot; pxc++){
-      int j1 = int((-1 + sqrt(1+8*pxc))/2);
-      int j2 = pxc - j1*(j1+1)/2;
-      idxz_count = idxz_trd(j1,j2);
-      for(int j = abs(j1 - j2); j <= MIN(twojmax, j1 + j2); j += 2) {
-        for (int mb = 0; 2*mb <= j; mb++)
+        }        
+	for (int mb = 0; 2*mb <= j; mb++)
           for (int ma = 0; ma <= j; ma++) {
             idxz(idxz_count,0) = j1;
             idxz(idxz_count,1) = j2;
@@ -274,6 +251,7 @@ void SNA::build_indexlist()
             idxz(idxz_count,7) = (2 * mb - j - (2 * mb1min - j1) + j2) / 2;
             idxz(idxz_count,8) = MIN(j1, (2 * mb - j + j2 + j1) / 2) - mb1min + 1;
 
+            idxzbeta(idxz_count) = betaj;
             idxz_count++;
           }
       }
@@ -386,23 +364,25 @@ void SNA::compute_yi()
       int ma = (2 * (ma1min+ma2max) - j1 - j2 + j) / 2;
       const int jjdu = idxdu_block(j) + (j+1)*mb + ma;
   
-      int jju1 = (j1*(j1+1)*(2*j1+1)/6) + (j1+1)*mb1min;
-      int jju2 = (j2*(j2+1)*(2*j2+1)/6) + (j2+1)*mb2max;
-      int icgb = mb1min*(j2+1) + mb2max + idxcg_block(j1,j2,j);
+      int tju1 = (j1*(j1+1)*(2*j1+1)/6) + (j1+1)*mb1min;
+      int tju2 = (j2*(j2+1)*(2*j2+1)/6) + (j2+1)*mb2max;
+      int tcgb = mb1min*(j2+1) + mb2max + idxcg_block(j1,j2,j);
       int icga = ma1min*(j2+1) + ma2max + idxcg_block(j1,j2,j);
-  
+      int jju1,jju2,icgb;
+
       SNADOUBLE ztmp_r = 0.0;
       SNADOUBLE ztmp_i = 0.0;
   
       // loop over columns of u1 and corresponding
       // columns of u2 satisfying Clebsch-Gordan constraint 
       //      2*mb-j = 2*mb1-j1 + 2*mb2-j2
-  
-      for(int ib = 0; ib < nb; ib++) {
-  
+      for(int ib = 0; ib < nb; ib++)
+      {  
         SNADOUBLE suma1_r = 0.0;
         SNADOUBLE suma1_i = 0.0;
-            
+        jju1 = tju1 + ib*(j1+1);
+        jju2 = tju2 - ib*(j2+1);
+	icgb = tcgb + ib*j2;
         // loop over elements of row u1[mb1] and corresponding elements 
         // of row u2[mb2] satisfying Clebsch-Gordan constraint 
         //      2*ma-j = 2*ma1-j1 + 2*ma2-j
@@ -418,17 +398,11 @@ void SNA::compute_yi()
             (ulisttot(natom,jju1+ma1).re * ulisttot(natom,jju2+ma2).im
              + ulisttot(natom,jju1+ma1).im * ulisttot(natom,jju2+ma2).re);
         }
-  
-  
         ztmp_r += cglist(icgb) * suma1_r;
         ztmp_i += cglist(icgb) * suma1_i;
-        jju1 += j1+1;
-        jju2 -= j2+1;
-        icgb += j2;
       } // end loop over ib
   
       // apply z(j1,j2,j,ma,mb) to unique element of y(j)
-  
 #if defined(openmp_version)
 #pragma omp atomic
 #endif
