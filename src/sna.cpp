@@ -358,12 +358,14 @@ SNA::omp_offload_init()
     this->cglist.dptr [0:this->cglist.size])
 
 #pragma omp target enter data map(to                                           \
-                                  : this->ulist.dptr [0:this->ulist.size],     \
+                                  : this->ulist_r.dptr [0:this->ulist_r.size], \
+                                    this->ulist_i.dptr [0:this->ulist_i.size], \
                                     this->ulisttot.dptr                        \
                                     [0:this->ulisttot.size],                   \
                                     this->dulist.dptr [0:this->dulist.size],   \
                                     this->ylist.dptr [0:this->ylist.size],     \
                                     this->dedr.dptr [0:this->dedr.size])
+//                                  : this->ulist.dptr [0:this->ulist.size], 
 }
 
 void
@@ -425,7 +427,7 @@ SNA::compute_ui()
 #pragma omp target teams distribute parallel for collapse(2)
 #else
 #pragma omp parallel for collapse(2) default(none)                             \
-  shared(rootpqarray, ulist_parity, idxu_block, ulist, MY_PI)
+  shared(rootpqarray, ulist_parity, idxu_block, ulist_r, ulist_i,MY_PI)
 #endif
 #endif
   for (int nbor = 0; nbor < num_nbor; nbor++) {
@@ -740,11 +742,11 @@ SNA::add_uarraytot(int natom,
 #if _OPENMP
 #pragma omp atomic
 #endif
-        ulisttot(natom, jju).re += sfac * ulist(natom, nbor, jju).re;
+        ulisttot(natom, jju).re += sfac * ulist_r(natom, nbor, jju);
 #if _OPENMP
 #pragma omp atomic
 #endif
-        ulisttot(natom, jju).im += sfac * ulist(natom, nbor, jju).im;
+        ulisttot(natom, jju).im += sfac * ulist_i(natom, nbor, jju);
         jju++;
       }
   }
@@ -791,16 +793,16 @@ SNA::compute_uarray(int natom,
 
   // initialize first entry
   // initialize top row of each layer to zero
-  ulist(natom, nbor, 0).re = 1.0;
-  ulist(natom, nbor, 0).im = 0.0;
+  ulist_r(natom, nbor, 0) = 1.0;
+  ulist_i(natom, nbor, 0) = 0.0;
 
   // skip over right half of each uarray
   jju = 1;
   for (int j = 1; j <= twojmax; j++) {
     int deljju = j + 1;
     for (int mb = 0; 2 * mb <= j; mb++) {
-      ulist(natom, nbor, jju).re = 0.0;
-      ulist(natom, nbor, jju).im = 0.0;
+      ulist_r(natom, nbor, jju) = 0.0;
+      ulist_i(natom, nbor, jju) = 0.0;
       jju += deljju;
     }
     int ncolhalf = deljju / 2;
@@ -820,30 +822,30 @@ SNA::compute_uarray(int natom,
     for (int m_iter = 0; m_iter < m_max; ++m_iter) {
       int mb = m_iter / ma_max;
       int ma = m_iter % ma_max;
-      double up_r = ulist(natom, nbor, jjup).re;
-      double up_i = ulist(natom, nbor, jjup).im;
+      double up_r = ulist_r(natom, nbor, jjup);
+      double up_i = ulist_i(natom, nbor, jjup);
 
       rootpq = rootpqarray(j - ma, j - mb);
-      ulist(natom, nbor, jju).re += rootpq * (a_r * up_r + a_i * up_i);
-      ulist(natom, nbor, jju).im += rootpq * (a_r * up_i - a_i * up_r);
+      ulist_r(natom, nbor, jju) += rootpq * (a_r * up_r + a_i * up_i);
+      ulist_i(natom, nbor, jju) += rootpq * (a_r * up_i - a_i * up_r);
 
       rootpq = rootpqarray(ma + 1, j - mb);
-      ulist(natom, nbor, jju + 1).re = -rootpq * (b_r * up_r + b_i * up_i);
-      ulist(natom, nbor, jju + 1).im = -rootpq * (b_r * up_i - b_i * up_r);
+      ulist_r(natom, nbor, jju + 1) = -rootpq * (b_r * up_r + b_i * up_i);
+      ulist_i(natom, nbor, jju + 1) = -rootpq * (b_r * up_i - b_i * up_r);
 
       // assign middle column i.e. mb+1
 
       if (2 * (mb + 1) == j) {
         rootpq = rootpqarray(j - ma, mb + 1);
-        ulist(natom, nbor, jju + deljju).re +=
+        ulist_r(natom, nbor, jju + deljju) +=
           rootpq * (b_r * up_r - b_i * up_i);
-        ulist(natom, nbor, jju + deljju).im +=
+        ulist_i(natom, nbor, jju + deljju) +=
           rootpq * (b_r * up_i + b_i * up_r);
 
         rootpq = rootpqarray(ma + 1, mb + 1);
-        ulist(natom, nbor, jju + 1 + deljju).re =
+        ulist_r(natom, nbor, jju + 1 + deljju) =
           rootpq * (a_r * up_r - a_i * up_i);
-        ulist(natom, nbor, jju + 1 + deljju).im =
+        ulist_i(natom, nbor, jju + 1 + deljju) =
           rootpq * (a_r * up_i + a_i * up_r);
       }
 
@@ -862,10 +864,10 @@ SNA::compute_uarray(int natom,
     int jjuip = jjui + (j + 1) * (j + 1) - 1;
     for (int mb = 0; 2 * mb < j; mb++) {
       for (int ma = 0; ma <= j; ma++) {
-        ulist(natom, nbor, jjuip).re =
-          ulist_parity(jjui) * ulist(natom, nbor, jjui).re;
-        ulist(natom, nbor, jjuip).im =
-          ulist_parity(jjui) * -ulist(natom, nbor, jjui).im;
+        ulist_r(natom, nbor, jjuip) =
+          ulist_parity(jjui) * ulist_r(natom, nbor, jjui);
+        ulist_i(natom, nbor, jjuip) =
+          ulist_parity(jjui) * -ulist_i(natom, nbor, jjui);
         jjui++;
         jjuip--;
       }
@@ -973,8 +975,8 @@ SNA::compute_duarray(int natom,
 
       for (int ma = 0; ma < j; ma++) {
 
-        double up_r = ulist(natom, nbor, jjup).re;
-        double up_i = ulist(natom, nbor, jjup).im;
+        double up_r = ulist_r(natom, nbor, jjup);
+        double up_i = ulist_i(natom, nbor, jjup);
 
         rootpq = rootpqarray(j - ma, j - mb);
         for (int k = 0; k < 3; k++) {
@@ -1058,22 +1060,22 @@ SNA::compute_duarray(int natom,
     for (int mb = 0; 2 * mb <= j; mb++)
       for (int ma = 0; ma <= j; ma++) {
         dulist(natom, nbor, jjdu, 0).re =
-          dsfac * ulist(natom, nbor, jju).re * ux +
+          dsfac * ulist_r(natom, nbor, jju) * ux +
           sfac * dulist(natom, nbor, jjdu, 0).re;
         dulist(natom, nbor, jjdu, 0).im =
-          dsfac * ulist(natom, nbor, jju).im * ux +
+          dsfac * ulist_i(natom, nbor, jju) * ux +
           sfac * dulist(natom, nbor, jjdu, 0).im;
         dulist(natom, nbor, jjdu, 1).re =
-          dsfac * ulist(natom, nbor, jju).re * uy +
+          dsfac * ulist_r(natom, nbor, jju) * uy +
           sfac * dulist(natom, nbor, jjdu, 1).re;
         dulist(natom, nbor, jjdu, 1).im =
-          dsfac * ulist(natom, nbor, jju).im * uy +
+          dsfac * ulist_i(natom, nbor, jju) * uy +
           sfac * dulist(natom, nbor, jjdu, 1).im;
         dulist(natom, nbor, jjdu, 2).re =
-          dsfac * ulist(natom, nbor, jju).re * uz +
+          dsfac * ulist_r(natom, nbor, jju) * uz +
           sfac * dulist(natom, nbor, jjdu, 2).re;
         dulist(natom, nbor, jjdu, 2).im =
-          dsfac * ulist(natom, nbor, jju).im * uz +
+          dsfac * ulist_i(natom, nbor, jju) * uz +
           sfac * dulist(natom, nbor, jjdu, 2).im;
         jju++;
         jjdu++;
@@ -1129,7 +1131,8 @@ SNA::create_twojmax_arrays()
 
   cglist.resize(idxcg_max);
   // ALlocate memory for ulist
-  ulist.resize(num_atoms, num_nbor, idxu_max);
+  ulist_r.resize(num_atoms, num_nbor, idxu_max);
+  ulist_i.resize(num_atoms, num_nbor, idxu_max);
   dedr.resize(num_atoms, num_nbor, 3);
   ylist.resize(num_atoms, idxdu_max);
   ulisttot.resize(num_atoms, idxu_max);

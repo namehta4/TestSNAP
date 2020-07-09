@@ -127,7 +127,8 @@ private:
   Array3D<int> idxcg_block;
 
   // Main data structures
-  Array3D<SNAcomplex> ulist;
+  Array3D<SNADOUBLE> ulist_r;
+  Array3D<SNADOUBLE> ulist_i;
   Array2D<SNAcomplex> ulisttot;
   Array1D<int> ulist_parity;
   Array1D<int> idxdu_block;
