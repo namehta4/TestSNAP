@@ -127,9 +127,8 @@ private:
   Array3D<int> idxcg_block;
 
   // Main data structures
-  Array3D<SNADOUBLE> ulist_r;
-  Array3D<SNADOUBLE> ulist_i;
-  Array2D<SNAcomplex> ulisttot;
+  Array3D<SNADOUBLE> ulist;
+  Array2D<SNADOUBLE> ulisttot;
   Array1D<int> ulist_parity;
   Array1D<int> idxdu_block;
   Array1D<int> idxu_block;
@@ -139,8 +138,8 @@ private:
 
   // derivatives of data
 
-  Array4D<SNAcomplex> dulist;
-  Array2D<SNAcomplex> ylist;
+  Array4D<SNADOUBLE> dulist;
+  Array2D<SNADOUBLE> ylist;
 
   static const int nmaxfactorial = 167;
   static const SNADOUBLE nfac_table[];
